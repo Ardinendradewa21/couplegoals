@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:couplegoals/models/user.dart';
+import 'package:couplegoals/models/budget.dart';
+import 'package:couplegoals/models/goal.dart';
+import 'package:couplegoals/models/transaction.dart';
 import 'package:couplegoals/pages/splash_page.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 
@@ -12,12 +15,17 @@ void main() async {
   final appDocumentDir = await path_provider.getApplicationDocumentsDirectory();
   await Hive.initFlutter(appDocumentDir.path);
 
-  // Registrasi Adapter yang sudah kita generate
   Hive.registerAdapter(UserAdapter());
+  Hive.registerAdapter(BudgetAdapter());
+  Hive.registerAdapter(TransactionAdapter());
+  Hive.registerAdapter(GoalAdapter());
 
   // Buka box yang akan kita gunakan
   await Hive.openBox<User>('users');
   await Hive.openBox('session'); // Box sederhana untuk simpan sesi login
+  await Hive.openBox<Budget>('budgets');
+  await Hive.openBox<Transaction>('transactions');
+  await Hive.openBox<Goal>('goals');
 
   runApp(const SelarasApp());
 }

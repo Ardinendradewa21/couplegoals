@@ -59,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   @override
-  Widget build(BuildContext.context) {
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -119,7 +119,10 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text("Login", style: TextStyle(fontSize: 18)),
+                          child: const Text(
+                            "Login",
+                            style: TextStyle(fontSize: 18),
+                          ),
                         ),
                       ),
                 const SizedBox(height: 24),
