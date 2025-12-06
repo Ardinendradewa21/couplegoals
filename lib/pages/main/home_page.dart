@@ -3,13 +3,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:couplegoals/models/budget.dart';
 import 'package:couplegoals/models/transaction.dart';
 import 'package:couplegoals/utils/constants.dart';
-import 'package:couplegoals/utils/formatters.dart'; // (Tetap perlu untuk formatCurrency)
+import 'package:couplegoals/utils/formatters.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:couplegoals/widgets/budget_progress_bar.dart';
 import 'package:couplegoals/widgets/set_budget_sheet.dart';
-import 'package:couplegoals/pages/main/history_page.dart';
-import 'package:couplegoals/widgets/transaction_detail_dialog.dart';
 import 'package:couplegoals/widgets/transaction_tile.dart';
+import 'package:couplegoals/pages/main/history_page.dart';
+import 'package:couplegoals/widgets/transfer_wallet_sheet.dart';
+import 'package:couplegoals/services/auth_service.dart';
 
 class HomePage extends StatefulWidget {
   final String walletId;
@@ -26,6 +27,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final AuthService _authService = AuthService();
   int _touchedIndex = -1;
 
   void _showSetBudgetSheet({Budget? existingBudget}) {
@@ -40,18 +42,36 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 2. Fungsi baru untuk detail
-  void _showTransactionDetail(Transaction transaction) {
-    showDialog(
+  // --- FUNGSI BARU: Tampilkan Sheet Transfer ---
+  void _showTransferSheet() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => TransactionDetailDialog(transaction: transaction),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => const TransferWalletSheet(),
     );
   }
+  // ---------------------------------------------
 
   Map<String, dynamic> _processData(
     Box<Transaction> transactionBox,
     Box<Budget> budgetBox,
   ) {
+    final String? userId = _authService.getCurrentUserId();
+    if (userId == null) {
+      // Jika user tidak ada, jangan tampilkan data apapun
+      return {
+        'transactions': <Transaction>[],
+        'totalPemasukan': 0.0,
+        'totalPengeluaran': 0.0,
+        'saldoAkhir': 0.0,
+        'categorySpendMap': <String, double>{},
+        'budgetMap': <String, double>{},
+      };
+    }
     final transactions = transactionBox.values
         .where((t) => t.walletId == widget.walletId)
         .toList();
@@ -62,26 +82,40 @@ class _HomePageState extends State<HomePage> {
     double totalPemasukan = 0;
     double totalPengeluaran = 0;
     Map<String, double> categorySpendMap = {};
+
+    // Inisialisasi map hanya untuk kategori Pengeluaran asli (bukan Transfer)
     for (var cat in AppConstants.expenseCategories) {
       categorySpendMap[cat['name']] = 0.0;
     }
+
     for (var transaction in transactions) {
+      // Cek apakah ini transaksi Transfer
+      final isTransfer = transaction.category == 'Transfer';
+
       if (transaction.type == TransactionType.pemasukan) {
+        // Transfer masuk tetap menambah saldo, tapi tidak masuk hitungan 'Pemasukan' murni jika mau dipisahkan.
+        // Untuk sederhananya, kita hitung sebagai pemasukan saldo.
         totalPemasukan += transaction.amount;
       } else {
         totalPengeluaran += transaction.amount;
-        categorySpendMap.update(
-          transaction.category,
-          (value) => value + transaction.amount,
-          ifAbsent: () => transaction.amount,
-        );
+        // HANYA catat ke categorySpendMap jika BUKAN transfer
+        // agar Pie Chart tidak penuh dengan 'Transfer'
+        if (!isTransfer) {
+          categorySpendMap.update(
+            transaction.category,
+            (value) => value + transaction.amount,
+            ifAbsent: () => transaction.amount,
+          );
+        }
       }
     }
+
     double saldoAkhir = totalPemasukan - totalPengeluaran;
     Map<String, double> budgetMap = {};
     for (var budget in budgets) {
       budgetMap[budget.category] = budget.amount;
     }
+
     return {
       'transactions': transactions,
       'totalPemasukan': totalPemasukan,
@@ -102,6 +136,15 @@ class _HomePageState extends State<HomePage> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
+        actions: [
+          // --- TOMBOL TRANSFER BARU ---
+          IconButton(
+            icon: const Icon(Icons.swap_horiz, color: Colors.teal),
+            tooltip: 'Transfer Antar Dompet',
+            onPressed: _showTransferSheet,
+          ),
+          // ----------------------------
+        ],
       ),
       body: ValueListenableBuilder<Box<Transaction>>(
         valueListenable: Hive.box<Transaction>('transactions').listenable(),
@@ -117,6 +160,7 @@ class _HomePageState extends State<HomePage> {
               final Map<String, double> categorySpendMap =
                   data['categorySpendMap'];
               final Map<String, double> budgetMap = data['budgetMap'];
+
               transactions.sort((a, b) => b.date.compareTo(a.date));
 
               return ListView(
@@ -134,56 +178,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 20),
                   _buildBudgetSection(categorySpendMap, budgetMap),
                   const SizedBox(height: 20),
-
-                  // 3. UPDATE: Tambah tombol "Lihat Semua"
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Histori Transaksi Terkini',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TransactionHistoryPage(
-                                walletId: widget.walletId,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('Lihat Semua'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  transactions.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Belum ada transaksi.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: transactions.length > 5
-                              ? 5
-                              : transactions.length,
-                          itemBuilder: (context, index) {
-                            final transaction = transactions[index];
-                            // 4. UPDATE: Gunakan TransactionTile
-                            return TransactionTile(
-                              transaction: transaction,
-                              onTap: () => _showTransactionDetail(transaction),
-                            );
-                          },
-                        ),
+                  _buildHistorySection(transactions),
                 ],
               );
             },
@@ -203,9 +198,7 @@ class _HomePageState extends State<HomePage> {
         onPressed: (index) {
           final newWallet = index == 0 ? 'Pribadi' : 'Keluarga';
           widget.onWalletChanged(newWallet);
-          setState(() {
-            _touchedIndex = -1;
-          });
+          setState(() => _touchedIndex = -1);
         },
         borderRadius: BorderRadius.circular(12),
         selectedColor: Colors.white,
@@ -314,6 +307,12 @@ class _HomePageState extends State<HomePage> {
     final sections = categorySpendMap.entries
         .where((entry) => entry.value > 0)
         .toList();
+    // Hitung total pengeluaran MURNI (tanpa transfer) untuk persentase pie chart
+    final totalPureExpense = sections.fold(
+      0.0,
+      (sum, entry) => sum + entry.value,
+    );
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -371,8 +370,9 @@ class _HomePageState extends State<HomePage> {
                             final isTouched = (i == _touchedIndex);
                             final fontSize = isTouched ? 16.0 : 12.0;
                             final radius = isTouched ? 60.0 : 50.0;
-                            final percentage =
-                                (entry.value / totalPengeluaran) * 100;
+                            final percentage = (totalPureExpense > 0)
+                                ? (entry.value / totalPureExpense) * 100
+                                : 0.0;
                             return PieChartSectionData(
                               color: categoryData['color'],
                               value: entry.value,
@@ -470,12 +470,15 @@ class _HomePageState extends State<HomePage> {
                 final totalBudget = budgetMap[category]!;
                 return InkWell(
                   onTap: () {
-                    final existingBudget = Hive.box<Budget>(
-                      'budgets',
-                    ).get(Budget.getHiveKey(widget.walletId, category));
-                    if (existingBudget != null) {
+                    final existingBudget = Hive.box<Budget>('budgets').get(
+                      Budget.getHiveKey(
+                        widget.walletId,
+                        category,
+                        _authService.getCurrentUserId()!,
+                      ),
+                    );
+                    if (existingBudget != null)
                       _showSetBudgetSheet(existingBudget: existingBudget);
-                    }
                   },
                   child: BudgetProgressBar(
                     category: category,
@@ -490,6 +493,49 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 5. HAPUS _buildTransactionTile()
-  // ... (Fungsi _buildTransactionTile yang lama dihapus dari sini) ...
+  Widget _buildHistorySection(List<Transaction> transactions) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Histori Transaksi Terkini',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        TransactionHistoryPage(walletId: widget.walletId),
+                  ),
+                );
+              },
+              child: const Text('Lihat Semua'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        transactions.isEmpty
+            ? const Center(
+                child: Text(
+                  'Belum ada transaksi.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: transactions.length > 5 ? 5 : transactions.length,
+                itemBuilder: (context, index) => TransactionTile(
+                  transaction: transactions[index],
+                  onTap: () {},
+                ), // Tambahkan dialog detail jika mau
+              ),
+      ],
+    );
+  }
 }

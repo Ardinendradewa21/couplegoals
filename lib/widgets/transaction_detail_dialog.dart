@@ -81,9 +81,7 @@ class TransactionDetailDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                transaction.description.isEmpty
-                    ? '(Tidak ada catatan)'
-                    : transaction.description,
+                transaction.id.isEmpty ? '(Tidak ada catatan)' : transaction.id,
                 style: const TextStyle(fontSize: 16),
               ),
             ),

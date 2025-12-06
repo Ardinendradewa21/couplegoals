@@ -21,11 +21,15 @@ class Goal extends HiveObject {
   @HiveField(4)
   double currentAmount;
 
+  @HiveField(5)
+  String userId;
+
   Goal({
     required this.id,
     required this.walletId,
     required this.name,
     required this.targetAmount,
     this.currentAmount = 0.0,
+    required this.userId,
   });
 }

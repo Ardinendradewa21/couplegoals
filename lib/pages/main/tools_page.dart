@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:couplegoals/widgets/currency_converter_widget.dart';
 import 'package:couplegoals/widgets/time_converter_widget.dart';
+import 'package:couplegoals/widgets/gold_price_widget.dart'; // <-- IMPORT BARU
 
 class ToolsPage extends StatelessWidget {
   const ToolsPage({super.key});
@@ -19,10 +20,15 @@ class ToolsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: const [
-          // Widget 1
+          // Widget 1: Harga Emas (Kita taruh paling atas karena menarik)
+          GoldPriceWidget(),
+          SizedBox(height: 16),
+
+          // Widget 2: Konverter Mata Uang
           CurrencyConverterWidget(),
           SizedBox(height: 16),
-          // Widget 2
+
+          // Widget 3: Waktu Dunia
           TimeConverterWidget(),
         ],
       ),

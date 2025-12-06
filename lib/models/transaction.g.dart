@@ -18,33 +18,36 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
     };
     return Transaction(
       id: fields[0] as String,
-      amount: fields[1] as double,
-      description: fields[2] as String,
-      date: fields[3] as DateTime,
+      walletId: fields[1] as String,
+      type: fields[2] as TransactionType,
+      amount: fields[3] as double,
       category: fields[4] as String,
-      type: fields[5] as TransactionType,
-      walletId: fields[6] as String,
+      date: fields[5] as DateTime,
+      notes: fields[6] as String,
+      userId: fields[7] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Transaction obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.amount)
+      ..write(obj.walletId)
       ..writeByte(2)
-      ..write(obj.description)
+      ..write(obj.type)
       ..writeByte(3)
-      ..write(obj.date)
+      ..write(obj.amount)
       ..writeByte(4)
       ..write(obj.category)
       ..writeByte(5)
-      ..write(obj.type)
+      ..write(obj.date)
       ..writeByte(6)
-      ..write(obj.walletId);
+      ..write(obj.notes)
+      ..writeByte(7)
+      ..write(obj.userId);
   }
 
   @override

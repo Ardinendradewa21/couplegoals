@@ -36,9 +36,9 @@ class TransactionTile extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
-          transaction.description.isEmpty
+          transaction.notes.isEmpty
               ? (isExpense ? 'Pengeluaran' : 'Pemasukan')
-              : transaction.description,
+              : transaction.notes,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

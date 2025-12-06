@@ -17,14 +17,18 @@ class Budget extends HiveObject {
   @HiveField(2)
   final double amount; // Jumlah budget (misal: 1000000)
 
+  @HiveField(3)
+  final String userId;
+
   Budget({
     required this.walletId,
     required this.category,
     required this.amount,
+    required this.userId,
   });
 
   // Helper untuk membuat ID unik sebagai key
-  static String getHiveKey(String walletId, String category) {
-    return '$walletId-$category';
+  static String getHiveKey(String userId, String walletId, String category) {
+    return '$userId-$walletId-$category';
   }
 }

@@ -6,6 +6,7 @@ import 'package:couplegoals/utils/formatters.dart';
 import 'package:couplegoals/widgets/transaction_detail_dialog.dart';
 import 'package:couplegoals/widgets/transaction_tile.dart';
 import 'package:intl/intl.dart';
+import 'package:couplegoals/services/auth_service.dart'; // <-- 1. IMPORT BARU
 
 class TransactionHistoryPage extends StatefulWidget {
   final String walletId;
@@ -17,15 +18,16 @@ class TransactionHistoryPage extends StatefulWidget {
 
 class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   final _searchController = TextEditingController();
+  final AuthService _authService = AuthService(); // <-- 2. INISIALISASI BARU
   String _searchQuery = '';
   String _selectedCategory = 'Semua';
   DateTimeRange? _selectedDateRange;
 
-  // Kategori filter = Semua + Pemasukan + Pengeluaran
   final List<String> _filterCategories = [
     'Semua',
     'Pemasukan',
     ...AppConstants.expenseCategories.map((e) => e['name'] as String),
+    'Transfer', // Jangan lupa tambahkan 'Transfer'
   ];
 
   void _showTransactionDetail(Transaction transaction) {
@@ -36,9 +38,9 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   }
 
   void _pickDateRange() async {
+    // ... (Fungsi ini sudah benar, tidak perlu diubah) ...
     final now = DateTime.now();
     final firstDayOfMonth = DateTime(now.year, now.month, 1);
-
     DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -46,7 +48,6 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       initialDateRange:
           _selectedDateRange ?? DateTimeRange(start: firstDayOfMonth, end: now),
     );
-
     if (picked != null) {
       setState(() {
         _selectedDateRange = picked;
@@ -74,28 +75,39 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       ),
       body: Column(
         children: [
-          // 1. Search Bar
           _buildSearchBar(),
-          // 2. Filter Bar
           _buildFilterBar(),
           const Divider(height: 1),
-          // 3. Transaction List
           Expanded(
             child: ValueListenableBuilder<Box<Transaction>>(
               valueListenable: Hive.box<Transaction>(
                 'transactions',
               ).listenable(),
               builder: (context, box, _) {
-                // Proses filtering
+                // --- 3. DAPATKAN USER ID & FILTER ---
+                final String? userId = _authService.getCurrentUserId();
+                if (userId == null) {
+                  return const Center(child: Text("Sesi tidak ditemukan."));
+                }
+
+                // INI PERBAIKANNYA: Filter berdasarkan walletId DAN userId
                 List<Transaction> transactions = box.values
-                    .where((t) => t.walletId == widget.walletId)
+                    .where(
+                      (t) =>
+                          t.walletId == widget.walletId && t.userId == userId,
+                    )
                     .toList();
+                // ------------------------------------
 
                 // Filter by Category
                 if (_selectedCategory != 'Semua') {
                   if (_selectedCategory == 'Pemasukan') {
                     transactions = transactions
-                        .where((t) => t.type == TransactionType.pemasukan)
+                        .where(
+                          (t) =>
+                              t.type == TransactionType.pemasukan &&
+                              t.category != 'Transfer',
+                        )
                         .toList();
                   } else {
                     transactions = transactions
@@ -106,11 +118,11 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
 
                 // Filter by Date Range
                 if (_selectedDateRange != null) {
+                  // ... (Logika filter tanggal Anda sudah benar) ...
                   transactions = transactions.where((t) {
                     final date = t.date;
                     final start = _selectedDateRange!.start;
                     final end = _selectedDateRange!.end;
-                    // (Ensure date comparisons are correct)
                     final isAfterStart =
                         date.isAfter(start.subtract(const Duration(days: 1))) ||
                         DateFormat('yyyy-MM-dd').format(date) ==
@@ -125,18 +137,16 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
 
                 // Filter by Search Query
                 if (_searchQuery.isNotEmpty) {
+                  // ... (Logika filter search Anda sudah benar) ...
                   transactions = transactions
                       .where(
                         (t) =>
-                            t.description.toLowerCase().contains(
-                              _searchQuery,
-                            ) ||
+                            t.notes.toLowerCase().contains(_searchQuery) ||
                             t.category.toLowerCase().contains(_searchQuery),
                       )
                       .toList();
                 }
 
-                // Urutkan (terbaru dulu)
                 transactions.sort((a, b) => b.date.compareTo(a.date));
 
                 if (transactions.isEmpty) {
@@ -168,6 +178,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   }
 
   Widget _buildSearchBar() {
+    // ... (Widget ini sudah benar, tidak perlu diubah) ...
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: TextField(
@@ -189,11 +200,11 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   }
 
   Widget _buildFilterBar() {
+    // ... (Widget ini sudah benar, tidak perlu diubah) ...
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
-          // Filter Kategori
           Expanded(
             flex: 2,
             child: DropdownButtonFormField<String>(
@@ -213,7 +224,6 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
             ),
           ),
           const SizedBox(width: 12),
-          // Filter Tanggal
           Expanded(
             flex: 1,
             child: InkWell(

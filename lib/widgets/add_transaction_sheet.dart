@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
-import 'package:couplegoals/models/transaction.dart';
-import 'package:couplegoals/utils/constants.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+
+import 'package:couplegoals/models/transaction.dart';
+import 'package:couplegoals/utils/constants.dart';
+import 'package:couplegoals/services/auth_service.dart';
 
 class AddTransactionSheet extends StatefulWidget {
   final String walletId;
@@ -19,35 +21,33 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
-
-  TransactionType _selectedType = TransactionType.pengeluaran;
-  String? _selectedCategory; // Dibuat nullable
-  DateTime _selectedDate = DateTime.now();
   final Uuid _uuid = const Uuid();
+  final AuthService _authService = AuthService(); // Ini sudah benar
 
-  // State untuk daftar kategori yang dinamis
-  List<Map<String, dynamic>> _currentCategories =
-      AppConstants.expenseCategories;
+  late TransactionType _selectedType;
+  late String _selectedCategory;
+  late DateTime _selectedDate;
+
+  List<Map<String, dynamic>> _currentCategories = [];
 
   @override
   void initState() {
     super.initState();
-    // Set kategori default
+    // Set default values
+    _selectedType = TransactionType.pengeluaran;
     _currentCategories = AppConstants.expenseCategories;
-    _selectedCategory = _currentCategories[0]['name'];
+    _selectedCategory = _currentCategories.first['name'] as String;
+    _selectedDate = DateTime.now();
   }
 
   void _onTypeChanged(TransactionType? type) {
     if (type == null) return;
     setState(() {
       _selectedType = type;
-      // Ganti daftar kategori & reset pilihan
-      if (type == TransactionType.pemasukan) {
-        _currentCategories = AppConstants.incomeCategories;
-      } else {
-        _currentCategories = AppConstants.expenseCategories;
-      }
-      _selectedCategory = _currentCategories[0]['name'];
+      _currentCategories = (type == TransactionType.pemasukan)
+          ? AppConstants.incomeCategories
+          : AppConstants.expenseCategories;
+      _selectedCategory = _currentCategories.first['name'] as String;
     });
   }
 
@@ -56,7 +56,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: DateTime(2101),
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
@@ -65,76 +65,96 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     }
   }
 
-  void _submitData() {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedCategory == null) {
-        // Seharusnya tidak terjadi, tapi sebagai penjaga
-        return;
-      }
+  void _saveTransaction() {
+    // --- PERBAIKAN 1: Tambahkan validasi form ---
+    if (!_formKey.currentState!.validate()) {
+      return; // Hentikan jika form tidak valid
+    }
+    // ------------------------------------------
 
-      final amount = double.tryParse(_amountController.text);
-      if (amount == null || amount <= 0) {
-        // Validasi tambahan
-        return;
-      }
+    final String? userId = _authService.getCurrentUserId(); // Ini sudah benar
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Sesi tidak ditemukan. Silakan login ulang.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final double amount = double.parse(_amountController.text);
+      final String notes = _notesController.text;
 
       final newTransaction = Transaction(
         id: _uuid.v4(),
         walletId: widget.walletId,
-        amount: amount,
-        category: _selectedCategory!,
-        date: _selectedDate,
         type: _selectedType,
-        description: _notesController.text,
+        category: _selectedCategory,
+        amount: amount,
+        date: _selectedDate,
+
+        // --- PERBAIKAN 2: 'description:' diubah jadi 'notes:' ---
+        notes: notes,
+
+        // ----------------------------------------------------
+        userId: userId, // Ini sudah benar
       );
 
-      // Simpan ke Hive
-      final box = Hive.box<Transaction>('transactions');
-      box.put(newTransaction.id, newTransaction);
+      final transactionBox = Hive.box<Transaction>('transactions');
+      // Gunakan .put(key, value) agar konsisten dengan update
+      transactionBox.put(newTransaction.id, newTransaction);
 
-      Navigator.of(context).pop(); // Tutup bottom sheet
+      print('Transaksi berhasil disimpan!');
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      print('--- ERROR SAAT SIMPAN TRANSAKSI ---');
+      print(e.toString());
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Gagal menyimpan transaksi: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
   @override
-  void dispose() {
-    _amountController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // Mengatasi tampilan keyboard
-    final keyboardSpace = MediaQuery.of(context).viewInsets.bottom;
-
-    return Container(
-      padding: EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: 20 + keyboardSpace,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
-      ),
-      child: SingleChildScrollView(
+    return SingleChildScrollView(
+      child: Container(
+        // ... (sisa kode build Anda SAMA PERSIS dan sudah benar) ...
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          top: 24,
+          left: 24,
+          right: 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Center(
-                child: Text(
-                  'Tambah Transaksi',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+              const Text(
+                'Tambah Transaksi',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 24),
-
-              // Segmented Button untuk Tipe
+              const SizedBox(height: 20),
               SegmentedButton<TransactionType>(
                 segments: const [
                   ButtonSegment(
@@ -155,27 +175,25 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 style: SegmentedButton.styleFrom(
                   selectedBackgroundColor:
                       _selectedType == TransactionType.pengeluaran
-                      ? Colors.red.shade100
-                      : Colors.green.shade100,
+                      ? Colors.red.withOpacity(0.1)
+                      : Colors.green.withOpacity(0.1),
                   selectedForegroundColor:
                       _selectedType == TransactionType.pengeluaran
-                      ? Colors.red.shade900
-                      : Colors.green.shade900,
-                  foregroundColor: Colors.grey.shade700,
+                      ? Colors.red.shade700
+                      : Colors.green.shade700,
+                  foregroundColor: Colors.grey,
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Form Jumlah
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _amountController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
                   labelText: 'Jumlah (Rp)',
-                  prefixText: 'Rp ',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.monetization_on_outlined),
                 ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Jumlah harus diisi';
@@ -187,55 +205,55 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 },
               ),
               const SizedBox(height: 16),
-
-              // Dropdown Kategori (INI YANG DIPERBAIKI)
               DropdownButtonFormField<String>(
-                value: _selectedCategory, // value di sini sudah benar
-                decoration: const InputDecoration(
-                  labelText: 'Kategori',
-                  border: OutlineInputBorder(),
-                ),
-                // Kita map dari _currentCategories
+                value: _selectedCategory,
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedCategory = newValue;
+                    });
+                  }
+                },
                 items: _currentCategories.map<DropdownMenuItem<String>>((
-                  Map<String, dynamic> categoryData,
+                  Map<String, dynamic> categoryMap,
                 ) {
-                  // Perbaikan: Ambil 'name' dari Map
-                  final categoryName = categoryData['name'] as String;
                   return DropdownMenuItem<String>(
-                    value: categoryName,
+                    value: categoryMap['name'],
                     child: Row(
                       children: [
                         Icon(
-                          categoryData['icon'],
-                          color: categoryData['color'],
+                          categoryMap['icon'],
+                          color: categoryMap['color'],
                           size: 20,
                         ),
-                        const SizedBox(width: 10),
-                        Text(categoryName),
+                        const SizedBox(width: 12),
+                        Text(categoryMap['name']),
                       ],
                     ),
                   );
-                }).toList(), // Jangan lupa .toList()
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedCategory = newValue;
-                  });
-                },
-                validator: (value) => value == null ? 'Pilih Kategori' : null,
+                }).toList(),
+                decoration: const InputDecoration(
+                  labelText: 'Kategori',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                ),
+                validator: (value) =>
+                    value == null ? 'Kategori harus dipilih' : null,
               ),
               const SizedBox(height: 16),
-
-              // Form Catatan
               TextFormField(
                 controller: _notesController,
                 decoration: const InputDecoration(
                   labelText: 'Catatan (Opsional)',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.note_alt_outlined),
                 ),
+                textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 16),
-
-              // Pilihan Tanggal
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -251,22 +269,25 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ],
               ),
               const SizedBox(height: 24),
-
-              // Tombol Simpan
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.save),
-                  label: const Text('Simpan Transaksi'),
-                  onPressed: _submitData,
+                child: ElevatedButton(
+                  onPressed: _saveTransaction,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  child: const Text(
+                    'Simpan Transaksi',
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

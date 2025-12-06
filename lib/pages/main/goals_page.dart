@@ -4,9 +4,9 @@ import 'package:couplegoals/models/goal.dart';
 import 'package:couplegoals/utils/formatters.dart';
 import 'package:couplegoals/widgets/add_goal_sheet.dart';
 import 'package:couplegoals/widgets/add_saving_dialog.dart';
+import 'package:couplegoals/services/auth_service.dart'; // <-- 1. IMPORT BARU
 
 class GoalsPage extends StatefulWidget {
-  // 1. Terima walletId dari MainNavigation
   final String walletId;
   const GoalsPage({super.key, required this.walletId});
 
@@ -15,7 +15,8 @@ class GoalsPage extends StatefulWidget {
 }
 
 class _GoalsPageState extends State<GoalsPage> {
-  // Fungsi untuk menampilkan modal Add Goal
+  final AuthService _authService = AuthService(); // <-- 2. INISIALISASI BARU
+
   void _showAddGoalSheet() {
     showModalBottomSheet(
       context: context,
@@ -28,7 +29,6 @@ class _GoalsPageState extends State<GoalsPage> {
     );
   }
 
-  // Fungsi untuk menampilkan dialog Add Saving
   void _showAddSavingDialog(Goal goal) {
     showDialog(
       context: context,
@@ -50,10 +50,20 @@ class _GoalsPageState extends State<GoalsPage> {
       body: ValueListenableBuilder<Box<Goal>>(
         valueListenable: Hive.box<Goal>('goals').listenable(),
         builder: (context, box, _) {
-          // 2. Filter goals berdasarkan walletId yang aktif
+          // --- 3. DAPATKAN USER ID & FILTER ---
+          final String? userId = _authService.getCurrentUserId();
+          if (userId == null) {
+            return const Center(child: Text("Sesi tidak ditemukan."));
+          }
+
+          // INI PERBAIKANNYA: Filter berdasarkan walletId DAN userId
           final goals = box.values
-              .where((goal) => goal.walletId == widget.walletId)
+              .where(
+                (goal) =>
+                    goal.walletId == widget.walletId && goal.userId == userId,
+              )
               .toList();
+          // ------------------------------------
 
           if (goals.isEmpty) {
             return Center(
@@ -81,7 +91,6 @@ class _GoalsPageState extends State<GoalsPage> {
             );
           }
 
-          // 3. Tampilkan list goals
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: goals.length,

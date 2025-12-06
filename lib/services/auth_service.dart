@@ -5,46 +5,55 @@ class AuthService {
   final Box<User> _userBox = Hive.box<User>('users');
   final Box _sessionBox = Hive.box('session');
 
-  // Fungsi Register
-  Future<bool> registerUser(String username, String password) async {
-    // Cek apakah username sudah ada
-    final userExists = _userBox.values.any((user) => user.username == username);
-
-    if (userExists) {
-      return false; // Registrasi gagal (username sudah dipakai)
-    }
-
-    // Buat user baru
-    final newUser = User(username: username, password: password);
-    await _userBox.add(newUser);
-    return true; // Registrasi sukses
-  }
-
-  // Fungsi Login
-  Future<bool> loginUser(String username, String password) async {
-    // Cari user berdasarkan username
-    try {
-      final user = _userBox.values.firstWhere(
-        (user) => user.username == username && user.password == password,
-      );
-
-      // Jika user ditemukan dan password cocok
-      // Simpan sesi login (simpan username-nya saja)
-      await _sessionBox.put('currentUser', user.username);
-      return true; // Login sukses
-    } catch (e) {
-      // Jika user tidak ditemukan (firstWhere error)
-      return false; // Login gagal
-    }
-  }
-
-  // Cek sesi
-  String? getCurrentUser() {
+  // Fungsi ini sudah benar
+  String? getCurrentUserId() {
     return _sessionBox.get('currentUser');
   }
 
-  // Logout
-  Future<void> logout() async {
+  Future<bool> registerUser(String username, String password) async {
+    if (_userBox.containsKey(username)) {
+      return false; // User sudah terdaftar
+    }
+
+    // --- PERBAIKAN 1 ---
+    // Ganti 'username:' menjadi 'id:' agar sesuai dengan model User.dart
+    // Tambahkan profilePicturePath: null agar lengkap
+    final user = User(
+      id: username,
+      password: password,
+      profilePicturePath: null,
+    );
+    // -------------------
+
+    await _userBox.put(username, user);
+    return true;
+  }
+
+  Future<bool> loginUser(String username, String password) async {
+    final user = _userBox.get(username);
+
+    if (user != null && user.password == password) {
+      // --- PERBAIKAN 2 ---
+      // Ganti 'user.username' menjadi 'user.id'
+      await _sessionBox.put('currentUser', user.id);
+      // -------------------
+
+      return true;
+    }
+    return false;
+  }
+
+  // Fungsi ini sudah benar
+  Future<User?> getCurrentUser() async {
+    final userId = _sessionBox.get('currentUser');
+    if (userId != null) {
+      return _userBox.get(userId);
+    }
+    return null;
+  }
+
+  // Fungsi ini sudah benar
+  Future<void> logoutUser() async {
     await _sessionBox.delete('currentUser');
   }
 }

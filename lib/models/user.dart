@@ -1,18 +1,21 @@
 import 'package:hive/hive.dart';
 
-part 'user.g.dart'; // File ini akan digenerate otomatis
+part 'user.g.dart'; // File ini akan digenerate ulang
 
-@HiveType(typeId: 0) // typeId harus unik untuk setiap model Hive
+@HiveType(typeId: 0)
 class User extends HiveObject {
   @HiveField(0)
-  late String username;
+  late String id; // <-- GANTI 'username' menjadi 'id'
 
   @HiveField(1)
-  late String password; // CATATAN: Di project nyata, password harus di-hash!
-  // Untuk project akhir, plain text tidak masalah.
+  late String password;
 
   @HiveField(2)
-  String? imagePath; // Path ke gambar profil di device
+  String? profilePicturePath;
 
-  User({required this.username, required this.password, this.imagePath});
+  User({
+    required this.id, // <-- GANTI 'username' menjadi 'id'
+    required this.password,
+    this.profilePicturePath,
+  });
 }

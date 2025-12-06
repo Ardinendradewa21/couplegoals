@@ -6,8 +6,10 @@ import 'package:couplegoals/models/goal.dart';
 import 'package:couplegoals/models/transaction.dart';
 import 'package:couplegoals/pages/splash_page.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
+import 'package:hive/hive.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-void main() async {
+Future<void> main() async {
   // Pastikan Flutter binding siap
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -19,6 +21,7 @@ void main() async {
   Hive.registerAdapter(BudgetAdapter());
   Hive.registerAdapter(TransactionAdapter());
   Hive.registerAdapter(GoalAdapter());
+  Hive.registerAdapter(TransactionTypeAdapter());
 
   // Buka box yang akan kita gunakan
   await Hive.openBox<User>('users');
@@ -26,6 +29,8 @@ void main() async {
   await Hive.openBox<Budget>('budgets');
   await Hive.openBox<Transaction>('transactions');
   await Hive.openBox<Goal>('goals');
+
+  await initializeDateFormatting('id_ID', null);
 
   runApp(const SelarasApp());
 }

@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
 
 class AppConstants {
-  // Kategori default jika tidak ditemukan
+  // Kategori default
   static const Map<String, dynamic> defaultCategory = {
     'name': 'Lainnya',
     'icon': Icons.more_horiz,
     'type': 'Pengeluaran',
     'color': Colors.grey,
+    'isTransfer': false,
   };
 
-  // Daftar kategori
+  // Daftar kategori LENGKAP
   static const List<Map<String, dynamic>> categories = [
+    // --- KATEGORI SPESIAL (TRANSFER) ---
+    {
+      'name': 'Transfer',
+      'icon': Icons.swap_horiz,
+      'type': 'Transfer', // Tipe khusus
+      'color': Colors.teal,
+      'isTransfer': true, // Flag penanda
+    },
+
     // Pengeluaran
     {
       'name': 'Makan',
@@ -49,6 +59,12 @@ class AppConstants {
       'color': Colors.pink,
     },
     {
+      'name': 'Tabungan',
+      'icon': Icons.savings,
+      'type': 'Pengeluaran',
+      'color': Colors.teal,
+    },
+    {
       'name': 'Lainnya (Keluar)',
       'icon': Icons.more_horiz,
       'type': 'Pengeluaran',
@@ -82,22 +98,23 @@ class AppConstants {
     },
   ];
 
-  // Helper untuk filter
   static List<Map<String, dynamic>> get expenseCategories {
-    return categories.where((cat) => cat['type'] == 'Pengeluaran').toList();
+    return categories
+        .where(
+          (cat) => cat['type'] == 'Pengeluaran' && cat['isTransfer'] != true,
+        )
+        .toList();
   }
 
   static List<Map<String, dynamic>> get incomeCategories {
-    return categories.where((cat) => cat['type'] == 'Pemasukan').toList();
+    return categories
+        .where((cat) => cat['type'] == 'Pemasukan' && cat['isTransfer'] != true)
+        .toList();
   }
 
-  // --- INI METHOD YANG HILANG ---
-  // Method helper untuk mendapatkan data (icon, color) berdasarkan nama kategori
   static Map<String, dynamic> getCategoryData(String categoryName) {
-    // Cari di daftar kategori
     return categories.firstWhere(
       (cat) => cat['name'] == categoryName,
-      // Jika tidak ketemu (misal: kategori dihapus), kembalikan default
       orElse: () => defaultCategory,
     );
   }

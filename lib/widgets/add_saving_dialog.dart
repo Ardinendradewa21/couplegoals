@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 import 'package:couplegoals/models/goal.dart';
 import 'package:couplegoals/models/transaction.dart';
 import 'package:couplegoals/utils/formatters.dart';
+import 'package:couplegoals/services/auth_service.dart';
 import 'package:uuid/uuid.dart';
 
 class AddSavingDialog extends StatefulWidget {
@@ -17,50 +18,52 @@ class AddSavingDialog extends StatefulWidget {
 class _AddSavingDialogState extends State<AddSavingDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   void _submitSaving() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      final double amount = double.tryParse(_amountController.text) ?? 0.0;
-      if (amount <= 0) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // 1. Buat Transaksi Pengeluaran
-      // Ini penting agar uang di dompet utama berkurang
-      final transactionBox = Hive.box<Transaction>('transactions');
-      final newTransaction = Transaction(
-        id: const Uuid().v4(),
-        walletId: widget.goal.walletId,
-        type: TransactionType.pengeluaran,
-        amount: amount,
-        category: 'Tabungan', // Kategori khusus untuk goals
-        date: DateTime.now(),
-        description: 'Menabung untuk "${widget.goal.name}"',
+    // --- 3. DAPATKAN USER ID ---
+    final String? userId = _authService.getCurrentUserId();
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Sesi tidak ditemukan.')),
       );
-      await transactionBox.put(newTransaction.id, newTransaction);
-
-      // 2. Update Goal
-      // (Kita menggunakan .save() karena Goal extends HiveObject)
-      widget.goal.currentAmount += amount;
-      await widget.goal.save();
-
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+      return;
     }
+    // -------------------------
+
+    setState(() => _isLoading = true);
+    final double amount = double.tryParse(_amountController.text) ?? 0.0;
+
+    // 1. Buat Transaksi Pengeluaran
+    final transactionBox = Hive.box<Transaction>('transactions');
+    final newTransaction = Transaction(
+      id: const Uuid().v4(),
+      walletId: widget.goal.walletId,
+      type: TransactionType.pengeluaran,
+      amount: amount,
+      category: 'Tabungan',
+      date: DateTime.now(),
+      notes: 'Menabung untuk "${widget.goal.name}"',
+      userId: userId, // <-- 4. SIMPAN USER ID
+    );
+    await transactionBox.put(newTransaction.id, newTransaction);
+
+    // 2. Update Goal
+    widget.goal.currentAmount += amount;
+    await widget.goal.save();
+
+    if (mounted) Navigator.of(context).pop();
   }
 
+  // ... (sisa kode build Anda SAMA PERSIS) ...
   @override
   Widget build(BuildContext context) {
+    final sisaTarget = widget.goal.targetAmount - widget.goal.currentAmount;
     return AlertDialog(
-      title: Text(
-        'Tambah Tabungan',
-        style: TextStyle(fontWeight: FontWeight.bold),
-      ),
+      title: const Text('Tambah Tabungan'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -68,17 +71,18 @@ class _AddSavingDialogState extends State<AddSavingDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Target: ${widget.goal.name}'),
+            const SizedBox(height: 4),
             Text(
-              'Sisa Target: ${Formatters.formatCurrency(widget.goal.targetAmount - widget.goal.currentAmount)}',
-              style: TextStyle(color: Colors.grey[600]),
+              'Sisa Target: ${Formatters.formatCurrency(sisaTarget)}',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
               decoration: const InputDecoration(
                 labelText: 'Jumlah Tabungan',
-                border: OutlineInputBorder(),
                 prefixText: 'Rp ',
+                border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -86,8 +90,12 @@ class _AddSavingDialogState extends State<AddSavingDialog> {
                 if (value == null || value.isEmpty) {
                   return 'Jumlah tidak boleh kosong';
                 }
-                if (double.tryParse(value) == null) {
+                final double? amount = double.tryParse(value);
+                if (amount == null) {
                   return 'Format angka salah';
+                }
+                if (amount > sisaTarget) {
+                  return 'Melebihi sisa target!';
                 }
                 return null;
               },

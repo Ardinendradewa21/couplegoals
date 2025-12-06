@@ -71,7 +71,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 //
                 Text(
-                  "CoupleGoals",
+                  "Selaras",
                   style: TextStyle(
                     fontSize: 40,
                     fontWeight: FontWeight.bold,
@@ -80,7 +80,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "Kelola keuangan bersama.",
+                  "Happy Wife, Happy Life",
                   style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 48),

@@ -1,9 +1,8 @@
 import 'package:hive/hive.dart';
 
-part 'transaction.g.dart'; // Ini akan digenerate
+part 'transaction.g.dart'; // Ini akan digenerate ulang
 
-// Enum untuk tipe transaksi
-@HiveType(typeId: 2) // typeId 0 untuk User, 1 kita cadangkan, 2 untuk enum
+@HiveType(typeId: 2)
 enum TransactionType {
   @HiveField(0)
   pemasukan,
@@ -12,36 +11,34 @@ enum TransactionType {
   pengeluaran,
 }
 
-@HiveType(typeId: 1) // typeId 1 untuk Transaction
+@HiveType(typeId: 1)
 class Transaction extends HiveObject {
   @HiveField(0)
-  late String id; // ID unik untuk filtering/delete
-
+  late String id;
   @HiveField(1)
-  late double amount;
-
+  late String walletId;
   @HiveField(2)
-  late String description; // Deskripsi/catatan
-
+  late TransactionType type;
   @HiveField(3)
-  late DateTime date;
-
+  late double amount;
   @HiveField(4)
   late String category;
-
   @HiveField(5)
-  late TransactionType type;
-
+  late DateTime date;
   @HiveField(6)
-  late String walletId; // 'Pribadi' atau 'Keluarga'
+  late String notes; // Kita sudah ganti dari 'description'
+
+  @HiveField(7) // <-- DI SINI LETAKNYA
+  late String userId; // Penanda pemilik data
 
   Transaction({
     required this.id,
-    required this.amount,
-    required this.description,
-    required this.date,
-    required this.category,
-    required this.type,
     required this.walletId,
+    required this.type,
+    required this.amount,
+    required this.category,
+    required this.date,
+    required this.notes,
+    required this.userId, // <-- DAN DI SINI (CONSTRUCTOR)
   });
 }

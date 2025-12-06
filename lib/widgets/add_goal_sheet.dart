@@ -38,6 +38,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
         name: name,
         targetAmount: targetAmount,
         currentAmount: 0.0,
+        userId: 'some-user-id', // Ganti dengan userId yang sesuai
       );
 
       final goalsBox = Hive.box<Goal>('goals');

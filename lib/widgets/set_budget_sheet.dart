@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:couplegoals/models/budget.dart';
 import 'package:couplegoals/utils/constants.dart';
+import 'package:couplegoals/services/auth_service.dart'; // <-- 1. IMPORT BARU
 
 class SetBudgetSheet extends StatefulWidget {
   final String walletId; // 'Pribadi' atau 'Keluarga'
@@ -21,6 +22,7 @@ class SetBudgetSheet extends StatefulWidget {
 class _SetBudgetSheetState extends State<SetBudgetSheet> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final AuthService _authService = AuthService(); // <-- 2. INISIALISASI BARU
   String? _selectedCategory;
 
   @override
@@ -29,6 +31,9 @@ class _SetBudgetSheetState extends State<SetBudgetSheet> {
     if (widget.existingBudget != null) {
       _selectedCategory = widget.existingBudget!.category;
       _amountController.text = widget.existingBudget!.amount.toInt().toString();
+    } else {
+      // Set default jika ini budget baru
+      _selectedCategory = AppConstants.expenseCategories.first['name'];
     }
   }
 
@@ -40,6 +45,16 @@ class _SetBudgetSheetState extends State<SetBudgetSheet> {
 
   void _handleSaveBudget() async {
     if (_formKey.currentState!.validate() && _selectedCategory != null) {
+      // --- 3. DAPATKAN USER ID ---
+      final String? userId = _authService.getCurrentUserId();
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Sesi tidak ditemukan.')),
+        );
+        return;
+      }
+      // -------------------------
+
       final amount = double.tryParse(_amountController.text) ?? 0.0;
       if (amount <= 0) return;
 
@@ -49,10 +64,18 @@ class _SetBudgetSheetState extends State<SetBudgetSheet> {
         walletId: widget.walletId,
         category: _selectedCategory!,
         amount: amount,
+        userId: userId, // <-- 4. SIMPAN USER ID
       );
 
-      // Gunakan key unik "walletId-category" untuk "upsert" (update or insert)
-      final hiveKey = Budget.getHiveKey(widget.walletId, _selectedCategory!);
+      // --- 5. PERBARUI HIVE KEY ---
+      // Gunakan key unik "userId-walletId-category"
+      final hiveKey = Budget.getHiveKey(
+        userId,
+        widget.walletId,
+        _selectedCategory!,
+      );
+      // --------------------------
+
       await budgetBox.put(hiveKey, newBudget);
 
       if (mounted) {
@@ -63,10 +86,7 @@ class _SetBudgetSheetState extends State<SetBudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter kategori agar hanya kategori pengeluaran yg bisa di-budget
-    final expenseCategories = AppConstants.categories
-        .where((cat) => cat['type'] == 'Pengeluaran')
-        .toList();
+    final expenseCategories = AppConstants.expenseCategories;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -96,7 +116,6 @@ class _SetBudgetSheetState extends State<SetBudgetSheet> {
             // Kategori
             DropdownButtonFormField<String>(
               value: _selectedCategory,
-              // Jika mode edit, disable dropdown
               onChanged: widget.existingBudget != null
                   ? null
                   : (String? newValue) {
